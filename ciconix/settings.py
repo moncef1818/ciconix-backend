@@ -37,6 +37,9 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+
+    'registration',
+    'teams',
 ]
 
 MIDDLEWARE = [
@@ -121,3 +124,7 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+CTFD_URL = "http://localhost:8001"
+CTFD_API_TOKEN = "ctfd_5f1953d749e19f0cd0ee93c0818d53b3adfec7d480f9cd8d659cb07dea313826"
