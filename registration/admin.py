@@ -24,19 +24,34 @@ class SpecialPassAdmin(admin.ModelAdmin):
     
     def save_model(self, request, obj, form, change):
         """FORCE team creation on approval"""
-        was_approved = obj.is_approved  # Before save
+        was_approved = obj.is_approved
         super().save_model(request, obj, form, change)
         
-        # Check if newly approved AND no team
         if obj.is_approved and not Team.objects.filter(registration=obj).exists():
-            team = Team.objects.create(
+            # ✅ Generate SECURE random password
+            secure_password = Team.generate_secure_password()
+            
+            # ✅ Create team as proper Django User
+            team = Team.objects.create_user(
+                email=obj.email1,
                 team_name=obj.team_name,
-                registration=obj
+                password=secure_password  # ✅ Auto-hashed
             )
-            team.sync_to_ctfd(password="kjqwdvksdasfdj")  # Auto CTFd sync
-            self.message_user(request, f"✅ Team '{team.team_name}' created & synced to CTFd!")
+            
+            # ✅ Link registration
+            team.registration = obj
+            team.save()
+            
+            # ✅ Sync to CTFd
+            ctfd_id = team.sync_to_ctfd(secure_password)
+            
+            # ✅ Success message with password (you can email this later)
+            message = f"✅ Team '{team.team_name}' created!\n🔑 Password: `{secure_password}`\n🌐 CTFd ID: {ctfd_id or 'Pending'}"
+            self.message_user(request, message, level='success')
+            
         elif not obj.is_approved and was_approved:
             self.message_user(request, "Team unapproved")
+    
 
     def approve_registrations(self, request, queryset):
         queryset.update(is_approved=True)
