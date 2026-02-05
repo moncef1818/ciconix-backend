@@ -38,7 +38,7 @@ class SpecialPassRegistration(models.Model):
     ]
 
     # Team Leader Information
-    firstname1 = models.CharField(max_length=150, unique=True) 
+    firstname1 = models.CharField(max_length=150) 
     lastname1 = models.CharField(max_length=150)
     school1 = models.CharField(max_length=255 , choices=School_Choices)
     year1 = models.IntegerField(choices=Year_Choices)
@@ -49,7 +49,7 @@ class SpecialPassRegistration(models.Model):
     discord_id1 = models.CharField(max_length=100, unique=True)
 
     # Second Team member Information
-    firstname2 = models.CharField(max_length=150, unique=True) 
+    firstname2 = models.CharField(max_length=150) 
     lastname2 = models.CharField(max_length=150)
     school2 = models.CharField(max_length=255 , choices=School_Choices)
     year2 = models.IntegerField(choices=Year_Choices)
@@ -60,7 +60,7 @@ class SpecialPassRegistration(models.Model):
     discord_id2 = models.CharField(max_length=100, unique=True)
 
     # Third Team member Information
-    firstname3 = models.CharField(max_length=150, unique=True) 
+    firstname3 = models.CharField(max_length=150) 
     lastname3 = models.CharField(max_length=150)
     school3 = models.CharField(max_length=255 , choices=School_Choices)
     year3 = models.IntegerField(choices=Year_Choices)
@@ -71,7 +71,7 @@ class SpecialPassRegistration(models.Model):
     discord_id3 = models.CharField(max_length=100, unique=True)
 
     # forth Team member Information
-    firstname4 = models.CharField(max_length=150, unique=True) 
+    firstname4 = models.CharField(max_length=150) 
     lastname4 = models.CharField(max_length=150)
     school4 = models.CharField(max_length=255 , choices=School_Choices)
     year4 = models.IntegerField(choices=Year_Choices)
@@ -82,7 +82,7 @@ class SpecialPassRegistration(models.Model):
     discord_id4 = models.CharField(max_length=100, unique=True)
 
     # fifth Team member Information
-    firstname5 = models.CharField(max_length=150, unique=True) 
+    firstname5 = models.CharField(max_length=150) 
     lastname5 = models.CharField(max_length=150)
     school5 = models.CharField(max_length=255 , choices=School_Choices)
     year5 = models.IntegerField(choices=Year_Choices)
@@ -126,7 +126,7 @@ class BasicPassRegistration(models.Model):
     ]
 
     # Team Leader Information
-    firstname = models.CharField(max_length=150, unique=True) 
+    firstname = models.CharField(max_length=150) 
     lastname = models.CharField(max_length=150)
     school = models.CharField(max_length=255 , choices=School_Choices)
     year = models.IntegerField(choices=Year_Choices)
