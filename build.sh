@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -o errexit
 
+# Install dependencies
 pip install -r requirements.txt
-python manage.py collectstatic --noinput
+
+# ONLY run migrations (no collectstatic!)
 python manage.py migrate --noinput
