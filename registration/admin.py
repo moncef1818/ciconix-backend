@@ -22,35 +22,44 @@ class SpecialPassAdmin(admin.ModelAdmin):
 
     actions = ['approve_registrations' , 'reject_registrations' , 'reject_all_registrations', 'export_as_csv']
     
+    
     def save_model(self, request, obj, form, change):
-        """FORCE team creation on approval"""
         was_approved = obj.is_approved
         super().save_model(request, obj, form, change)
-        
+
         if obj.is_approved and not Team.objects.filter(registration=obj).exists():
-            # ✅ Generate SECURE random password
             secure_password = Team.generate_secure_password()
-            
-            # ✅ Create team as proper Django User
+
             team = Team.objects.create_user(
                 email=obj.email1,
                 team_name=obj.team_name,
-                password=secure_password  # ✅ Auto-hashed
+                password=secure_password
             )
-            
-            # ✅ Link registration
+
             team.registration = obj
             team.save()
-            
-            # ✅ Sync to CTFd
+
             ctfd_id = team.sync_to_ctfd(secure_password)
-            
-            # ✅ Success message with password (you can email this later)
-            message = f"✅ Team '{team.team_name}' created!\n🔑 Password: `{secure_password}`\n🌐 CTFd ID: {ctfd_id or 'Pending'}"
+
+            if not ctfd_id:
+                from teams.tasks import sync_team_to_ctfd_task
+                sync_team_to_ctfd_task.delay(team.id)
+                message = f"✅ Team '{team.team_name}' created!\n🔑 Password: `{secure_password}`\n⏳ CTFd sync queued (check later)"
+            else:
+                message = f"✅ Team '{team.team_name}' created!\n🔑 Password: `{secure_password}`\n🌐 CTFd ID: {ctfd_id}"
+
             self.message_user(request, message, level='success')
-            
-        elif not obj.is_approved and was_approved:
-            self.message_user(request, "Team unapproved")
+
+    # Add manual sync action
+    @admin.action(description="🔄 Retry CTFd Sync")
+    def retry_ctfd_sync(self, request, queryset):
+        fixed = 0
+        for team in queryset.filter(ctfd_team_id__isnull=True):
+            ctfd_id = team.sync_to_ctfd(team.team_password)
+            if ctfd_id:
+                fixed += 1
+        self.message_user(request, f"✅ Synced {fixed} teams to CTFd!")
+    retry_ctfd_sync.short_description = "Retry CTFd sync for selected teams"
     
 
     def approve_registrations(self, request, queryset):

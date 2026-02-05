@@ -4,6 +4,10 @@ from django.conf import settings
 import requests
 import secrets
 import string
+import logging
+import time
+
+logger = logging.getLogger(__name__)
 
 class TeamManager(BaseUserManager):
     def create_user(self, email, team_name, password=None, **extra_fields):
@@ -73,24 +77,67 @@ class Team(AbstractBaseUser, PermissionsMixin):
         return password
 
     def sync_to_ctfd(self, password):
-        """Sync team to CTFd"""
-        ctfd_api_url = f"{settings.CTFD_URL}/api/v1/teams"
+        """Sync to CTFd with RETRY + LOOKUP logic"""
+        ctfd_url = getattr(settings, 'CTFD_URL', 'http://localhost:8001')
+        ctfd_token = getattr(settings, 'CTFD_API_TOKEN', '')
+        
+        if not ctfd_token:
+            logger.warning("No CTFD_API_TOKEN in settings")
+            return None
+        
         headers = {
-            "Authorization": f"Token {settings.CTFD_API_TOKEN}",
-            "Content-Type": "application/json"
+            'Authorization': f'Token {ctfd_token}',
+            'Content-Type': 'application/json'
         }
-        data = {
-            "name": self.team_name,
-            "email": self.email,
-            "password": password
+        
+        # STEP 1: Try to CREATE team in CTFd
+        create_payload = {
+            'name': self.team_name,
+            'password': password,
+            'captain_id': None  # Will be set later
         }
+        
         try:
-            response = requests.post(ctfd_api_url, headers=headers, json=data, timeout=10)
-            print(f"CTFd {self.team_name}: {response.status_code}")
-            if response.status_code == 201:
-                self.ctfd_team_id = response.json()['data']['id']
-                self.save()
+            create_resp = requests.post(
+                f'{ctfd_url}/api/v1/teams',
+                json=create_payload,
+                headers=headers,
+                timeout=10
+            )
+            
+            if create_resp.status_code in [200, 201]:
+                ctfd_data = create_resp.json()
+                self.ctfd_team_id = ctfd_data['data']['id']
+                self.save(update_fields=['ctfd_team_id'])
+                logger.info(f"✅ Created CTFd team {self.ctfd_team_id}")
                 return self.ctfd_team_id
+                
         except Exception as e:
-            print(f"CTFd Error {self.team_name}: {e}")
+            logger.error(f"❌ CTFd CREATE failed: {e}")
+        
+        # STEP 2: If create failed, LOOKUP existing team (3 retries)
+        for attempt in range(3):
+            try:
+                lookup_resp = requests.get(
+                    f'{ctfd_url}/api/v1/teams?name={self.team_name}',
+                    headers=headers,
+                    timeout=10
+                )
+                
+                if lookup_resp.status_code == 200:
+                    teams = lookup_resp.json().get('data', [])
+                    if teams:
+                        ctfd_id = teams[0]['id']
+                        self.ctfd_team_id = ctfd_id
+                        self.save(update_fields=['ctfd_team_id'])
+                        logger.info(f"✅ Found existing CTFd team {ctfd_id}")
+                        return ctfd_id
+                        
+                # Wait before retry
+                time.sleep(2 ** attempt)  # 1s, 2s, 4s
+                
+            except Exception as e:
+                logger.error(f"❌ Lookup attempt {attempt+1} failed: {e}")
+        
+        logger.error(f"❌ Could not sync {self.team_name} to CTFd")
         return None

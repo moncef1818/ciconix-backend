@@ -1,5 +1,4 @@
 from django.db import models
-import requests
 from django.conf import settings
 
 class SpecialPassRegistration(models.Model):  
