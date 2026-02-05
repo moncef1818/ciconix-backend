@@ -159,6 +159,10 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "http://192.168.56.1:5173",     # Your VM IP
+    "http://127.0.0.1:5173",        # Localhost
+    "https://your-frontend.netlify.app",  
+    "https://ciconix.netlify.app",
 ]
 
 CORS_ALLOW_METHODS = [
