@@ -1,3 +1,5 @@
+# registration/models.py
+
 from django.db import models
 from django.conf import settings
 
@@ -37,62 +39,62 @@ class SpecialPassRegistration(models.Model):
         ('Other', 'Other'),
     ]
 
-    # Team Leader Information
+    # Team Leader Information (REQUIRED)
     firstname1 = models.CharField(max_length=150) 
     lastname1 = models.CharField(max_length=150)
-    school1 = models.CharField(max_length=255 , choices=School_Choices)
+    school1 = models.CharField(max_length=255, choices=School_Choices)
     year1 = models.IntegerField(choices=Year_Choices)
     student_id1 = models.CharField(max_length=50, unique=True)
-    skills1 = models.TextField(max_length=50,choices=Skills_Choices)
+    skills1 = models.TextField(max_length=50, choices=Skills_Choices)
     profile_link1 = models.URLField(blank=True, null=True, help_text="Link to your profile (GitHub, TryHackMe, CTFTime, etc.)")
     email1 = models.EmailField(unique=True)
     discord_id1 = models.CharField(max_length=100, unique=True)
 
-    # Second Team member Information
+    # Second Team member Information (REQUIRED)
     firstname2 = models.CharField(max_length=150) 
     lastname2 = models.CharField(max_length=150)
-    school2 = models.CharField(max_length=255 , choices=School_Choices)
+    school2 = models.CharField(max_length=255, choices=School_Choices)
     year2 = models.IntegerField(choices=Year_Choices)
     student_id2 = models.CharField(max_length=50, unique=True)
-    skills2 = models.TextField(max_length=50,choices=Skills_Choices)
+    skills2 = models.TextField(max_length=50, choices=Skills_Choices)
     profile_link2 = models.URLField(blank=True, null=True, help_text="Link to your profile (GitHub, TryHackMe, CTFTime, etc.)")
     email2 = models.EmailField(unique=True)
     discord_id2 = models.CharField(max_length=100, unique=True)
 
-    # Third Team member Information
+    # Third Team member Information (REQUIRED)
     firstname3 = models.CharField(max_length=150) 
     lastname3 = models.CharField(max_length=150)
-    school3 = models.CharField(max_length=255 , choices=School_Choices)
+    school3 = models.CharField(max_length=255, choices=School_Choices)
     year3 = models.IntegerField(choices=Year_Choices)
     student_id3 = models.CharField(max_length=50, unique=True)
-    skills3 = models.TextField(max_length=50,choices=Skills_Choices)
+    skills3 = models.TextField(max_length=50, choices=Skills_Choices)
     profile_link3 = models.URLField(blank=True, null=True, help_text="Link to your profile (GitHub, TryHackMe, CTFTime, etc.)")
     email3 = models.EmailField(unique=True)
     discord_id3 = models.CharField(max_length=100, unique=True)
 
-    # forth Team member Information
-    firstname4 = models.CharField(max_length=150) 
-    lastname4 = models.CharField(max_length=150)
-    school4 = models.CharField(max_length=255 , choices=School_Choices)
-    year4 = models.IntegerField(choices=Year_Choices)
-    student_id4 = models.CharField(max_length=50, unique=True)
-    skills4 = models.TextField(max_length=50,choices=Skills_Choices)
+    # Fourth Team member Information (OPTIONAL) ✅
+    firstname4 = models.CharField(max_length=150, blank=True, null=True)  # ✅ Optional
+    lastname4 = models.CharField(max_length=150, blank=True, null=True)
+    school4 = models.CharField(max_length=255, choices=School_Choices, blank=True, null=True)
+    year4 = models.IntegerField(choices=Year_Choices, blank=True, null=True)
+    student_id4 = models.CharField(max_length=50, unique=True, blank=True, null=True)
+    skills4 = models.TextField(max_length=50, choices=Skills_Choices, blank=True, null=True)
     profile_link4 = models.URLField(blank=True, null=True, help_text="Link to your profile (GitHub, TryHackMe, CTFTime, etc.)")
-    email4 = models.EmailField(unique=True)
-    discord_id4 = models.CharField(max_length=100, unique=True)
+    email4 = models.EmailField(unique=True, blank=True, null=True)
+    discord_id4 = models.CharField(max_length=100, unique=True, blank=True, null=True)
 
-    # fifth Team member Information
-    firstname5 = models.CharField(max_length=150) 
-    lastname5 = models.CharField(max_length=150)
-    school5 = models.CharField(max_length=255 , choices=School_Choices)
-    year5 = models.IntegerField(choices=Year_Choices)
-    student_id5 = models.CharField(max_length=50, unique=True)
-    skills5 = models.TextField(max_length=50,choices=Skills_Choices)
+    # Fifth Team member Information (OPTIONAL) ✅
+    firstname5 = models.CharField(max_length=150, blank=True, null=True)  # ✅ Optional
+    lastname5 = models.CharField(max_length=150, blank=True, null=True)
+    school5 = models.CharField(max_length=255, choices=School_Choices, blank=True, null=True)
+    year5 = models.IntegerField(choices=Year_Choices, blank=True, null=True)
+    student_id5 = models.CharField(max_length=50, unique=True, blank=True, null=True)
+    skills5 = models.TextField(max_length=50, choices=Skills_Choices, blank=True, null=True)
     profile_link5 = models.URLField(blank=True, null=True, help_text="Link to your profile (GitHub, TryHackMe, CTFTime, etc.)")
-    email5 = models.EmailField(unique=True)
-    discord_id5 = models.CharField(max_length=100, unique=True)
+    email5 = models.EmailField(unique=True, blank=True, null=True)
+    discord_id5 = models.CharField(max_length=100, unique=True, blank=True, null=True)
 
-    # team Information
+    # Team Information
     team_name = models.CharField(max_length=150, unique=True)
     is_approved = models.BooleanField(default=False, help_text="Admin approves for competition")
 

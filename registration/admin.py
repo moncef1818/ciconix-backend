@@ -1,6 +1,12 @@
 from django.contrib import admin
+
+from teams.tasks import _update_csv_status
 from .models import SpecialPassRegistration, BasicPassRegistration
 from teams.models import Team
+import csv
+import os
+from django.conf import settings
+from datetime import datetime
 
 @admin.register(SpecialPassRegistration)
 class SpecialPassAdmin(admin.ModelAdmin):
@@ -23,44 +29,124 @@ class SpecialPassAdmin(admin.ModelAdmin):
     actions = ['approve_registrations' , 'reject_registrations' , 'reject_all_registrations', 'export_as_csv']
     
     
+
+    
     def save_model(self, request, obj, form, change):
         was_approved = obj.is_approved
         super().save_model(request, obj, form, change)
-
+    
         if obj.is_approved and not Team.objects.filter(registration=obj).exists():
             secure_password = Team.generate_secure_password()
-
+    
             team = Team.objects.create_user(
                 email=obj.email1,
                 team_name=obj.team_name,
                 password=secure_password
             )
-
+    
             team.registration = obj
             team.save()
-
-            ctfd_id = team.sync_to_ctfd(secure_password)
-
+    
+            # Try CTFd sync with retries
+            ctfd_id = None
+            for attempt in range(3):
+                ctfd_id = team.sync_to_ctfd(secure_password)
+                if ctfd_id:
+                    break
+                import time
+                time.sleep(2 ** attempt)
+    
+            # Save to CSV file
+            self._save_password_to_csv(team.team_name, obj.email1, secure_password, ctfd_id)
+    
             if not ctfd_id:
                 from teams.tasks import sync_team_to_ctfd_task
-                sync_team_to_ctfd_task.delay(team.id)
-                message = f"✅ Team '{team.team_name}' created!\n🔑 Password: `{secure_password}`\n⏳ CTFd sync queued (check later)"
+                sync_team_to_ctfd_task.delay(team.id, secure_password)
+                message = f"✅ Team '{team.team_name}' created!\n⏳ CTFd sync queued\n📝 Password saved to CSV"
             else:
-                message = f"✅ Team '{team.team_name}' created!\n🔑 Password: `{secure_password}`\n🌐 CTFd ID: {ctfd_id}"
-
-            self.message_user(request, message, level='success')
-
-    # Add manual sync action
-    @admin.action(description="🔄 Retry CTFd Sync")
-    def retry_ctfd_sync(self, request, queryset):
-        fixed = 0
-        for team in queryset.filter(ctfd_team_id__isnull=True):
-            ctfd_id = team.sync_to_ctfd(team.team_password)
-            if ctfd_id:
-                fixed += 1
-        self.message_user(request, f"✅ Synced {fixed} teams to CTFd!")
-    retry_ctfd_sync.short_description = "Retry CTFd sync for selected teams"
+                message = f"✅ Team '{team.team_name}' created!\n🌐 CTFd ID: {ctfd_id}\n📝 Password saved to CSV"
     
+            self.message_user(request, message, level='success')
+    
+    def _save_password_to_csv(self, team_name, email, password, ctfd_id):
+        """Save team credentials to CSV file"""
+        # Define CSV file path (in a secure location)
+        csv_dir = getattr(settings, 'TEAM_PASSWORDS_DIR', os.path.join(settings.BASE_DIR, 'secure_data'))
+        os.makedirs(csv_dir, exist_ok=True)
+        
+        csv_file = os.path.join(csv_dir, 'team_passwords.csv')
+        
+        # Check if file exists to write header
+        file_exists = os.path.isfile(csv_file)
+        
+        with open(csv_file, 'a', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            
+            # Write header if new file
+            if not file_exists:
+                writer.writerow([
+                    'Team Name', 
+                    'Email', 
+                    'Password', 
+                    'CTFd ID', 
+                    'Created At',
+                    'Status'
+                ])
+            
+            # Write team data
+            writer.writerow([
+                team_name,
+                email,
+                password,
+                ctfd_id if ctfd_id else 'PENDING',
+                datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'Synced' if ctfd_id else 'Sync Failed'
+            ])
+# Add manual sync action
+    @admin.action(description="🔄 Retry CTFd Sync (uses CSV passwords)")
+    def retry_ctfd_sync_from_csv(self, request, queryset):
+        """Retry sync for teams that failed, using CSV stored passwords"""
+        import csv
+        csv_dir = getattr(settings, 'TEAM_PASSWORDS_DIR', os.path.join(settings.BASE_DIR, 'secure_data'))
+        csv_file = os.path.join(csv_dir, 'team_passwords.csv')
+
+        if not os.path.exists(csv_file):
+            self.message_user(request, "❌ CSV file not found!", level='error')
+            return
+
+        # Read passwords from CSV
+        password_map = {}
+        with open(csv_file, 'r', newline='', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                password_map[row['Team Name']] = row['Password']
+
+        fixed = 0
+        failed = []
+
+        for team in queryset.filter(ctfd_team_id__isnull=True):
+            if team.team_name in password_map:
+                password = password_map[team.team_name]
+                ctfd_id = team.sync_to_ctfd(password)
+
+                if ctfd_id:
+                    fixed += 1
+                    # Update CSV
+                    _update_csv_status(team.team_name, ctfd_id)
+                else:
+                    failed.append(team.team_name)
+            else:
+                failed.append(f"{team.team_name} (not in CSV)")
+
+        message = f"✅ Synced {fixed} teams to CTFd!"
+        if failed:
+            message += f"\n❌ Failed: {', '.join(failed)}"
+
+        self.message_user(request, message, level='success' if not failed else 'warning')
+
+    # Add this to actions list
+    actions = ['approve_registrations', 'reject_registrations', 'reject_all_registrations', 
+               'export_as_csv', 'retry_ctfd_sync_from_csv']    
 
     def approve_registrations(self, request, queryset):
         queryset.update(is_approved=True)
