@@ -9,7 +9,7 @@ from .models import Token
 from datetime import datetime
 
 
-def generate_tokens(num_5=0, num_10=0, num_15=0, num_20=0, num_30=0, num_50=0):
+def generate_tokens(num_5=0, num_10=0, num_15=0, num_20=0, num_30=0,num_40=0, num_50=0,num_60=0):
     """
     Simple function to generate tokens and save to CSV.
     
@@ -25,7 +25,9 @@ def generate_tokens(num_5=0, num_10=0, num_15=0, num_20=0, num_30=0, num_50=0):
         15: num_15,
         20: num_20,
         30: num_30,
+        40: num_40,
         50: num_50,
+        60: num_60,
     }
     
     # Create secure_data directory
