@@ -21,4 +21,8 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/registration/', include('registration.urls')),
     path('api/teams/', include('teams.urls')),
+    path('api/projects/', include('hackathon.urls')),
+    path('api/leaderboard/', include('leaderboard.urls')),
+    path('api/ctfd/', include('ctfd.urls')),
+    path('api/tokens/', include('tokens.urls')),
 ]

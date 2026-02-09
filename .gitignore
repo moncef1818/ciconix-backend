@@ -45,3 +45,8 @@ htmlcov/
 # --- Celery ---
 celerybeat-schedule
 celerybeat.pid
+
+# -- teams generated passwords ---
+secure_data/
+team_passwords.csv
+*.csv
