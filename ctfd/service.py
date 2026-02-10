@@ -13,7 +13,7 @@ class CTFdService:
             return cached_data
         
         ctfd_url = settings.CTFD_URL
-        ctfd_token = settings.CTFD_TOKEN
+        ctfd_token = settings.CTFD_API_TOKEN
         headers = {
             'Authorization': f'Token {ctfd_token}',
             'Content-Type': 'application/json'
@@ -39,7 +39,7 @@ class CTFdService:
             return cached_score
         
         ctfd_url = settings.CTFD_URL
-        ctfd_token = settings.CTFD_TOKEN
+        ctfd_token = settings.CTFD_API_TOKEN
 
         headers = {
             'Authorization': f'Token {ctfd_token}',

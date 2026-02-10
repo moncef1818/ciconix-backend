@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    #'django_ratelimit',
 
     'rest_framework',
     'rest_framework_simplejwt',
@@ -57,6 +58,17 @@ INSTALLED_APPS = [
     'tokens',
 
 ]
+
+
+
+#CACHES = {
+ #   'default': {
+   #     'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+    #    'LOCATION': 'unique-snowflake',
+    #}
+#}
+
+
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [

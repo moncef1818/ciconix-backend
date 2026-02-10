@@ -54,8 +54,8 @@ class ProjectDetailView(APIView):
     def get(self, request):
         team = request.user
         try:
-            Project = Project.objects.get(team=team)
-            serializer = ProjectSerializer(Project)
+            project = Project.objects.get(team=team)
+            serializer = ProjectSerializer(project)
             return Response({
                 "success": True,
                 "data": serializer.data
@@ -68,9 +68,9 @@ class ProjectDetailView(APIView):
         
 class AllProjectsView(APIView):
 
-    persmission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
     def get(self, request):
-        projects = Project.objects-all()
+        projects = Project.objects.all()
         serializer = ProjectSerializer(projects, many=True)
         return Response({
             "success": True,
