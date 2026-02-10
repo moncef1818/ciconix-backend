@@ -12,7 +12,9 @@ class Token(models.Model):
             (15, '15 points'),
             (20, '20 points'),
             (30, '30 points'),
+            (40, '40 points'),
             (50, '50 points'),
+            (60, '60 points'),
         ]
     )
     created_at = models.DateTimeField(auto_now_add=True)
