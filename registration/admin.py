@@ -1,3 +1,4 @@
+from asyncio.log import logger
 from django.contrib import admin
 
 from .models import SpecialPassRegistration, BasicPassRegistration
@@ -38,37 +39,32 @@ class SpecialPassAdmin(admin.ModelAdmin):
     
         if obj.is_approved and not Team.objects.filter(registration=obj).exists():
             secure_password = Team.generate_secure_password()
-    
+            
+            # Create Django team
             team = Team.objects.create_user(
                 email=obj.email1,
                 team_name=obj.team_name,
                 password=secure_password
             )
-    
             team.registration = obj
             team.save()
     
-            # Try CTFd sync with retries
-            ctfd_id = None
-            for attempt in range(3):
-                ctfd_id = team.sync_to_ctfd(secure_password)
-                if ctfd_id:
-                    break
-                import time
-                time.sleep(2 ** attempt)
-    
-            # Save to CSV file
+            # 🔥 TRY CTFd sync (logs everything)
+            logger.info(f"🔄 Attempting CTFd sync for {team.team_name}")
+            ctfd_id = team.sync_to_ctfd(secure_password)
+            
+            # ✅ ALWAYS save CSV backup
             self._save_password_to_csv(team.team_name, obj.email1, secure_password, ctfd_id)
-    
-            if not ctfd_id:
-                from teams.tasks import sync_team_to_ctfd_task
-                sync_team_to_ctfd_task.delay(team.id, secure_password)
-                message = f"✅ Team '{team.team_name}' created!\n⏳ CTFd sync queued\n📝 Password saved to CSV"
+            
+            if ctfd_id:
+                message = f"✅ {team.team_name}\n🌐 CTFd ID: {ctfd_id}\n📝 Password → CSV"
             else:
-                message = f"✅ Team '{team.team_name}' created!\n🌐 CTFd ID: {ctfd_id}\n📝 Password saved to CSV"
-    
+                message = (f"✅ {team.team_name} created + CSV saved\n"
+                          f"🔄 Check Django logs for CTFd error\n"
+                          f"📋 Use 'Retry CTFd Sync' button")
+                
             self.message_user(request, message, level='success')
-    
+        
     def _save_password_to_csv(self, team_name, email, password, ctfd_id):
         """Save team credentials to CSV file"""
         # Define CSV file path (in a secure location)
@@ -108,6 +104,7 @@ class SpecialPassAdmin(admin.ModelAdmin):
     def retry_ctfd_sync_from_csv(self, request, queryset):
         """Retry sync for teams that failed, using CSV stored passwords"""
         import csv
+
         csv_dir = getattr(settings, 'TEAM_PASSWORDS_DIR', os.path.join(settings.BASE_DIR, 'secure_data'))
         csv_file = os.path.join(csv_dir, 'team_passwords.csv')
 
@@ -125,25 +122,34 @@ class SpecialPassAdmin(admin.ModelAdmin):
         fixed = 0
         failed = []
 
-        for team in queryset.filter(ctfd_team_id__isnull=True):
-            if team.team_name in password_map:
-                password = password_map[team.team_name]
-                ctfd_id = team.sync_to_ctfd(password)
+        # 🔥 FIXED: Get TEAMS via registration (not SpecialPassRegistration!)
+        for registration in queryset:
+            if hasattr(registration, 'team') and registration.team:  # ✅ Check team exists
+                team = registration.team
+                # ✅ NOW filter on TEAM.ctfd_team_id (correct model!)
+                if not team.ctfd_team_id:  # ✅ team.ctfd_team_id__isnull=True equivalent
+                    if team.team_name in password_map:
+                        password = password_map[team.team_name]
+                        ctfd_id = team.sync_to_ctfd(password)
 
-                if ctfd_id:
-                    fixed += 1
-                    # Update CSV
-                    _update_csv_status(team.team_name, ctfd_id)
+                        if ctfd_id:
+                            fixed += 1
+                            # Update CSV
+                            _update_csv_status(team.team_name, ctfd_id)
+                        else:
+                            failed.append(team.team_name)
+                    else:
+                        failed.append(f"{team.team_name} (not in CSV)")
                 else:
-                    failed.append(team.team_name)
+                    failed.append(f"{team.team_name} (already synced)")
             else:
-                failed.append(f"{team.team_name} (not in CSV)")
+                failed.append(f"{registration.team_name} (no Django team)")
 
         message = f"✅ Synced {fixed} teams to CTFd!"
         if failed:
-            message += f"\n❌ Failed: {', '.join(failed)}"
+            message += f"\n❌ Failed: {', '.join(failed[:5])}"  # Limit list length
 
-        self.message_user(request, message, level='success' if not failed else 'warning')
+        self.message_user(request, message, level='success' if fixed > 0 else 'warning')
 
     # Add this to actions list
     actions = ['approve_registrations', 'reject_registrations', 'reject_all_registrations', 

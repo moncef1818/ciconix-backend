@@ -44,11 +44,12 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    #'django_ratelimit',
+    'django_ratelimit',
 
     'rest_framework',
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
+
 
     'registration',
     'teams',
@@ -135,7 +136,18 @@ DATABASES = {
     )
 }
 
+CACHES = {
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': 'redis://127.0.0.1:6379/1',
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+        }
+    }
+}
 
+RATELIMIT_ENABLE = True
+RATELIMIT_USE_CACHE = 'default'
 
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
@@ -176,6 +188,7 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 STATICFILES_DIRS = []
 
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
@@ -188,6 +201,9 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5173",        # Localhost
     "https://your-frontend.netlify.app",  
     "https://ciconix.netlify.app",
+    'http://localhost',
+    'http://127.0.0.1',
+    'http://192.168.0.133:5173',
 ]
 
 CORS_ALLOW_METHODS = [

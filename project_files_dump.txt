@@ -104,7 +104,7 @@ application = get_asgi_application()
 
 📄 FILE: ciconix/settings.py
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Lines: 209 | Size: 8.0K
+Lines: 233 | Size: 8.0K
 
 """
 Django settings for ciconix project.
@@ -158,6 +158,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
 
+
     'registration',
     'teams',
     'hackathon',
@@ -167,8 +168,16 @@ INSTALLED_APPS = [
 
 ]
 
-RATELIMIT_ENABLE = True
-RATELIMIT_USE_CACHE = 'default'
+
+
+#CACHES = {
+ #   'default': {
+   #     'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+    #    'LOCATION': 'unique-snowflake',
+    #}
+#}
+
+
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
@@ -235,7 +244,18 @@ DATABASES = {
     )
 }
 
+CACHES = {
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': 'redis://127.0.0.1:6379/1',
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+        }
+    }
+}
 
+RATELIMIT_ENABLE = True
+RATELIMIT_USE_CACHE = 'default'
 
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
@@ -276,6 +296,7 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 STATICFILES_DIRS = []
 
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
@@ -288,6 +309,9 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5173",        # Localhost
     "https://your-frontend.netlify.app",  
     "https://ciconix.netlify.app",
+    'http://localhost',
+    'http://127.0.0.1',
+    'http://192.168.0.133:5173',
 ]
 
 CORS_ALLOW_METHODS = [
@@ -320,7 +344,7 @@ DEBUG = True
 
 📄 FILE: ciconix/urls.py
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Lines: 28 | Size: 4.0K
+Lines: 31 | Size: 4.0K
 
 """
 URL configuration for ciconix project.
@@ -340,6 +364,9 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import include, path
+from django.conf.urls.static import static
+from . import settings
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -443,7 +470,7 @@ class CTFdService:
             return cached_data
         
         ctfd_url = settings.CTFD_URL
-        ctfd_token = settings.CTFD_TOKEN
+        ctfd_token = settings.CTFD_API_TOKEN
         headers = {
             'Authorization': f'Token {ctfd_token}',
             'Content-Type': 'application/json'
@@ -469,7 +496,7 @@ class CTFdService:
             return cached_score
         
         ctfd_url = settings.CTFD_URL
-        ctfd_token = settings.CTFD_TOKEN
+        ctfd_token = settings.CTFD_API_TOKEN
 
         headers = {
             'Authorization': f'Token {ctfd_token}',
@@ -543,6 +570,67 @@ class CTFdConfigView(APIView):
 
 ───────────────────────────────────────────────────────────────────────────────
 
+📄 FILE: dumb.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Lines: 54 | Size: 4.0K
+
+#!/bin/bash
+
+# dump_project_files.sh - Dump all git-tracked files content into single file
+# Usage: ./dump_project_files.sh [output_file]
+
+OUTPUT_FILE="${1:-project_files_dump.txt}"
+
+echo "🚀 Dumping all $(git ls-files | wc -l) git-tracked files into '$OUTPUT_FILE'..."
+echo "📅 Generated: $(date)"
+echo "📂 Project: $(basename $(pwd))"
+echo "═══════════════════════════════════════════════════════════════════════════════"
+echo
+
+# Clear output file
+> "$OUTPUT_FILE"
+
+# Function to add file content with separator
+add_file() {
+    local file="$1"
+    local rel_path=$(git ls-files --full-name "$file" 2>/dev/null || echo "$file")
+    
+    echo "📄 FILE: $rel_path" >> "$OUTPUT_FILE"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >> "$OUTPUT_FILE"
+    echo "Lines: $(wc -l < "$file") | Size: $(du -h "$file" | cut -f1)" >> "$OUTPUT_FILE"
+    echo >> "$OUTPUT_FILE"
+    
+    # Escape special characters and handle binary files
+    if file "$file" | grep -q "text"; then
+        cat "$file" >> "$OUTPUT_FILE"
+    else
+        echo "[BINARY/NON-TEXT FILE - $(file "$file")]" >> "$OUTPUT_FILE"
+    fi
+    
+    echo >> "$OUTPUT_FILE"
+    echo "───────────────────────────────────────────────────────────────────────────────" >> "$OUTPUT_FILE"
+    echo >> "$OUTPUT_FILE"
+}
+
+# Process all git-tracked files
+export -f add_file
+git ls-files | while read -r file; do
+    if [[ -f "$file" ]]; then
+        add_file "$file"
+    fi
+done
+
+# Add summary
+echo "✅ Dump completed!" >> "$OUTPUT_FILE"
+echo "📊 Total files: $(git ls-files | wc -l)" >> "$OUTPUT_FILE"
+echo "💾 Output file: $OUTPUT_FILE ($(du -h "$OUTPUT_FILE" | cut -f1))" >> "$OUTPUT_FILE"
+
+echo "✅ Done! Check '$OUTPUT_FILE'"
+echo "📏 File size: $(du -h "$OUTPUT_FILE" | cut -f1)"
+echo "📊 Total files processed: $(git ls-files | wc -l)"
+
+───────────────────────────────────────────────────────────────────────────────
+
 📄 FILE: hackathon/__init__.py
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Lines: 0 | Size: 0
@@ -553,12 +641,15 @@ Lines: 0 | Size: 0
 
 📄 FILE: hackathon/admin.py
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Lines: 18 | Size: 1.0K
+Lines: 42 | Size: 4.0K
 
 from django.contrib import admin
+from django.http import HttpResponse
+import csv
 from .models import Project
+from io import StringIO
 
-
+@admin.register(Project)  # ✅ THIS REGISTERS IT!
 class ProjectAdmin(admin.ModelAdmin):
     list_display = ('team', 'project_link', 'total_score', 'submission_time')
     list_filter = ('submission_time',)
@@ -568,12 +659,33 @@ class ProjectAdmin(admin.ModelAdmin):
     
     list_editable = ('total_score',)
     
-    actions = ['reset_scores', 'export_scores_csv']
+    # ✅ ACTIONS MUST BE IN actions LIST
+    actions = ['reset_scores', 'export_scores_csv']  # ✅ NOW WORKS!
 
     @admin.action(description="🔄 Reset all scores to 0")
     def reset_scores(self, request, queryset):
         updated = queryset.update(total_score=0)
-        self.message_user(request, f"Reset scores for {updated} projects")
+        self.message_user(request, f"Reset {updated} project(s) scores to 0", level='success')
+        return
+
+    @admin.action(description="📊 Export selected projects to CSV")
+    def export_scores_csv(self, request, queryset):
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="projects_scores.csv"'
+        
+        writer = csv.writer(response)
+        writer.writerow(['Team', 'Project Link', 'Total Score', 'Submission Time'])
+        
+        for project in queryset:
+            writer.writerow([
+                project.team.team_name if project.team else 'No Team',
+                project.project_link,
+                project.total_score,
+                project.submission_time
+            ])
+        
+        return response
+
 ───────────────────────────────────────────────────────────────────────────────
 
 📄 FILE: hackathon/apps.py
@@ -772,8 +884,8 @@ class ProjectDetailView(APIView):
     def get(self, request):
         team = request.user
         try:
-            Project = Project.objects.get(team=team)
-            serializer = ProjectSerializer(Project)
+            project = Project.objects.get(team=team)
+            serializer = ProjectSerializer(project)
             return Response({
                 "success": True,
                 "data": serializer.data
@@ -786,9 +898,9 @@ class ProjectDetailView(APIView):
         
 class AllProjectsView(APIView):
 
-    persmission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
     def get(self, request):
-        projects = Project.objects-all()
+        projects = Project.objects.all()
         serializer = ProjectSerializer(projects, many=True)
         return Response({
             "success": True,
@@ -952,10 +1064,18 @@ if __name__ == '__main__':
 
 ───────────────────────────────────────────────────────────────────────────────
 
+📄 FILE: project_files_dump.txt
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Lines: 1068 | Size: 44K
+
+
+───────────────────────────────────────────────────────────────────────────────
+
 📄 FILE: registration/admin.py
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Lines: 191 | Size: 8.0K
+Lines: 197 | Size: 8.0K
 
+from asyncio.log import logger
 from django.contrib import admin
 
 from .models import SpecialPassRegistration, BasicPassRegistration
@@ -996,37 +1116,32 @@ class SpecialPassAdmin(admin.ModelAdmin):
     
         if obj.is_approved and not Team.objects.filter(registration=obj).exists():
             secure_password = Team.generate_secure_password()
-    
+            
+            # Create Django team
             team = Team.objects.create_user(
                 email=obj.email1,
                 team_name=obj.team_name,
                 password=secure_password
             )
-    
             team.registration = obj
             team.save()
     
-            # Try CTFd sync with retries
-            ctfd_id = None
-            for attempt in range(3):
-                ctfd_id = team.sync_to_ctfd(secure_password)
-                if ctfd_id:
-                    break
-                import time
-                time.sleep(2 ** attempt)
-    
-            # Save to CSV file
+            # 🔥 TRY CTFd sync (logs everything)
+            logger.info(f"🔄 Attempting CTFd sync for {team.team_name}")
+            ctfd_id = team.sync_to_ctfd(secure_password)
+            
+            # ✅ ALWAYS save CSV backup
             self._save_password_to_csv(team.team_name, obj.email1, secure_password, ctfd_id)
-    
-            if not ctfd_id:
-                from teams.tasks import sync_team_to_ctfd_task
-                sync_team_to_ctfd_task.delay(team.id, secure_password)
-                message = f"✅ Team '{team.team_name}' created!\n⏳ CTFd sync queued\n📝 Password saved to CSV"
+            
+            if ctfd_id:
+                message = f"✅ {team.team_name}\n🌐 CTFd ID: {ctfd_id}\n📝 Password → CSV"
             else:
-                message = f"✅ Team '{team.team_name}' created!\n🌐 CTFd ID: {ctfd_id}\n📝 Password saved to CSV"
-    
+                message = (f"✅ {team.team_name} created + CSV saved\n"
+                          f"🔄 Check Django logs for CTFd error\n"
+                          f"📋 Use 'Retry CTFd Sync' button")
+                
             self.message_user(request, message, level='success')
-    
+        
     def _save_password_to_csv(self, team_name, email, password, ctfd_id):
         """Save team credentials to CSV file"""
         # Define CSV file path (in a secure location)
@@ -1066,6 +1181,7 @@ class SpecialPassAdmin(admin.ModelAdmin):
     def retry_ctfd_sync_from_csv(self, request, queryset):
         """Retry sync for teams that failed, using CSV stored passwords"""
         import csv
+
         csv_dir = getattr(settings, 'TEAM_PASSWORDS_DIR', os.path.join(settings.BASE_DIR, 'secure_data'))
         csv_file = os.path.join(csv_dir, 'team_passwords.csv')
 
@@ -1083,25 +1199,34 @@ class SpecialPassAdmin(admin.ModelAdmin):
         fixed = 0
         failed = []
 
-        for team in queryset.filter(ctfd_team_id__isnull=True):
-            if team.team_name in password_map:
-                password = password_map[team.team_name]
-                ctfd_id = team.sync_to_ctfd(password)
+        # 🔥 FIXED: Get TEAMS via registration (not SpecialPassRegistration!)
+        for registration in queryset:
+            if hasattr(registration, 'team') and registration.team:  # ✅ Check team exists
+                team = registration.team
+                # ✅ NOW filter on TEAM.ctfd_team_id (correct model!)
+                if not team.ctfd_team_id:  # ✅ team.ctfd_team_id__isnull=True equivalent
+                    if team.team_name in password_map:
+                        password = password_map[team.team_name]
+                        ctfd_id = team.sync_to_ctfd(password)
 
-                if ctfd_id:
-                    fixed += 1
-                    # Update CSV
-                    _update_csv_status(team.team_name, ctfd_id)
+                        if ctfd_id:
+                            fixed += 1
+                            # Update CSV
+                            _update_csv_status(team.team_name, ctfd_id)
+                        else:
+                            failed.append(team.team_name)
+                    else:
+                        failed.append(f"{team.team_name} (not in CSV)")
                 else:
-                    failed.append(team.team_name)
+                    failed.append(f"{team.team_name} (already synced)")
             else:
-                failed.append(f"{team.team_name} (not in CSV)")
+                failed.append(f"{registration.team_name} (no Django team)")
 
         message = f"✅ Synced {fixed} teams to CTFd!"
         if failed:
-            message += f"\n❌ Failed: {', '.join(failed)}"
+            message += f"\n❌ Failed: {', '.join(failed[:5])}"  # Limit list length
 
-        self.message_user(request, message, level='success' if not failed else 'warning')
+        self.message_user(request, message, level='success' if fixed > 0 else 'warning')
 
     # Add this to actions list
     actions = ['approve_registrations', 'reject_registrations', 'reject_all_registrations', 
@@ -1870,7 +1995,7 @@ class SpecialPassRegistrationView(APIView):
 
 📄 FILE: requirements.txt
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Lines: 67 | Size: 4.0K
+Lines: 37 | Size: 4.0K
 
 amqp==5.3.1
 asgiref==3.11.0
@@ -1885,39 +2010,8 @@ click-repl==0.3.0
 dj-database-url==3.1.0
 Django==6.0.1
 django-cors-headers==4.9.0
-djangorestframework==3.16.1
-djangorestframework_simplejwt==5.5.1
-idna==3.11
-kombu==5.6.2
-packaging==26.0
-prompt_toolkit==3.0.52
-psycopg2-binary==2.9.11
-PyJWT==2.11.0
-python-dateutil==2.9.0.post0
-python-decouple==3.8
-python-dotenv==1.2.1
-requests==2.32.5
-six==1.17.0
-sqlparse==0.5.5
-tzdata==2025.3
-tzlocal==5.3.1
-urllib3==2.6.3
-vine==5.1.0
-wcwidth==0.5.3
-gunicorn==25.0.1
-amqp==5.3.1
-asgiref==3.11.0
-billiard==4.2.4
-celery==5.6.2
-certifi==2026.1.4
-charset-normalizer==3.4.4
-click==8.3.1
-click-didyoumean==0.3.1
-click-plugins==1.1.1.2
-click-repl==0.3.0
-dj-database-url==3.1.0
-Django==6.0.1
-django-cors-headers==4.9.0
+django-ratelimit==4.1.0
+django-redis==6.0.0
 djangorestframework==3.16.1
 djangorestframework_simplejwt==5.5.1
 gunicorn==25.0.1
@@ -1930,6 +2024,7 @@ PyJWT==2.11.0
 python-dateutil==2.9.0.post0
 python-decouple==3.8
 python-dotenv==1.2.1
+redis==7.1.1
 requests==2.32.5
 six==1.17.0
 sqlparse==0.5.5
@@ -1938,7 +2033,7 @@ tzlocal==5.3.1
 urllib3==2.6.3
 vine==5.1.0
 wcwidth==0.5.3
-whitenoise>=6.5.0
+whitenoise==6.11.0
 
 ───────────────────────────────────────────────────────────────────────────────
 
@@ -2162,7 +2257,7 @@ Lines: 0 | Size: 0
 
 📄 FILE: teams/models.py
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Lines: 143 | Size: 8.0K
+Lines: 151 | Size: 8.0K
 
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
@@ -2243,47 +2338,55 @@ class Team(AbstractBaseUser, PermissionsMixin):
         return password
 
     def sync_to_ctfd(self, password):
-        """Sync to CTFd with RETRY + LOOKUP logic"""
-        ctfd_url = getattr(settings, 'CTFD_URL', 'http://localhost:8001')
+        """✅ PRODUCTION-READY CTFd sync - handles YOUR exact token"""
+        
+        ctfd_url = getattr(settings, 'CTFD_URL', 'http://localhost:8001').rstrip('/')
         ctfd_token = getattr(settings, 'CTFD_API_TOKEN', '')
         
         if not ctfd_token:
-            logger.warning("No CTFD_API_TOKEN in settings")
+            logger.error("❌ CTFD_API_TOKEN missing")
             return None
         
         headers = {
-            'Authorization': f'Token {ctfd_token}',
+            'Authorization': f'Token {ctfd_token}',  # ✅ YOUR exact format
             'Content-Type': 'application/json'
         }
         
-        # STEP 1: Try to CREATE team in CTFd
-        create_payload = {
-            'name': self.team_name,
-            'password': password,
-            'captain_id': None  # Will be set later
-        }
-        
+        # 🔥 STEP 1: CREATE TEAM
         try:
+            create_payload = {
+                'name': self.team_name,
+                'password': password,
+                'captain_id': None
+            }
+            
+            logger.info(f"🔄 Creating {self.team_name} in CTFd...")
             create_resp = requests.post(
                 f'{ctfd_url}/api/v1/teams',
                 json=create_payload,
                 headers=headers,
-                timeout=10
+                timeout=15  # Increased timeout
             )
+            
+            logger.info(f"CTFd CREATE {self.team_name}: {create_resp.status_code}")
+            logger.info(f"Response: {create_resp.text[:200]}...")
             
             if create_resp.status_code in [200, 201]:
                 ctfd_data = create_resp.json()
                 self.ctfd_team_id = ctfd_data['data']['id']
                 self.save(update_fields=['ctfd_team_id'])
-                logger.info(f"✅ Created CTFd team {self.ctfd_team_id}")
+                logger.info(f"✅ {self.team_name} CREATED: CTFd ID {self.ctfd_team_id}")
                 return self.ctfd_team_id
                 
+        except requests.exceptions.RequestException as e:
+            logger.error(f"❌ CTFd network error: {e}")
         except Exception as e:
-            logger.error(f"❌ CTFd CREATE failed: {e}")
+            logger.error(f"❌ CTFd parse error: {e}")
         
-        # STEP 2: If create failed, LOOKUP existing team (3 retries)
+        # 🔥 STEP 2: LOOKUP if create failed (3 retries)
         for attempt in range(3):
             try:
+                logger.info(f"🔍 Lookup attempt {attempt+1} for {self.team_name}")
                 lookup_resp = requests.get(
                     f'{ctfd_url}/api/v1/teams?name={self.team_name}',
                     headers=headers,
@@ -2296,18 +2399,18 @@ class Team(AbstractBaseUser, PermissionsMixin):
                         ctfd_id = teams[0]['id']
                         self.ctfd_team_id = ctfd_id
                         self.save(update_fields=['ctfd_team_id'])
-                        logger.info(f"✅ Found existing CTFd team {ctfd_id}")
+                        logger.info(f"✅ {self.team_name} FOUND: CTFd ID {ctfd_id}")
                         return ctfd_id
-                        
-                # Wait before retry
+                
+                logger.warning(f"Lookup {attempt+1} empty response")
                 time.sleep(2 ** attempt)  # 1s, 2s, 4s
                 
             except Exception as e:
-                logger.error(f"❌ Lookup attempt {attempt+1} failed: {e}")
+                logger.error(f"❌ Lookup {attempt+1} failed: {e}")
         
-        logger.error(f"❌ Could not sync {self.team_name} to CTFd")
+        logger.error(f"❌ COMPLETE FAILURE: {self.team_name} not synced")
         return None
-
+    
 ───────────────────────────────────────────────────────────────────────────────
 
 📄 FILE: teams/serializers.py
@@ -2442,12 +2545,12 @@ from .serializers import TeamSerializer
 from ctfd.service import CTFdService
 from hackathon.models import Project
 from django.db.models import Sum
+from django_ratelimit.decorators import ratelimit
+from django.utils.decorators import method_decorator
 
-
-
+@method_decorator(ratelimit(key='ip', rate='5/m'), name='dispatch')
 class TeamLoginView(APIView):
     permission_classes = [AllowAny]
-
     def post(self, request):
         serializer = TeamSerializer(data=request.data)
         
@@ -2541,12 +2644,48 @@ Lines: 0 | Size: 0
 
 📄 FILE: tokens/admin.py
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Lines: 3 | Size: 0
+Lines: 39 | Size: 4.0K
+
+# tokens/admin.py
 
 from django.contrib import admin
+from .models import Token, TokenSubmission
+import secrets
+import string
+import hashlib
 
-# Register your models here.
+@admin.register(Token)
+class TokenAdmin(admin.ModelAdmin):
+    list_display = ('base_points', 'created_at', 'submission_count')
+    list_filter = ('base_points', 'created_at')
+    ordering = ('-created_at',)
+    readonly_fields = ('token_hash', 'created_at')
+    
+    def submission_count(self, obj):
+        return obj.submissions.count()
+    submission_count.short_description = 'Submissions'
+    
+    fieldsets = (
+        ('Token Info', {
+            'fields': ('base_points', 'token_hash', 'created_at')
+        }),
+    )
 
+
+@admin.register(TokenSubmission)
+class TokenSubmissionAdmin(admin.ModelAdmin):
+    list_display = ('team', 'token_points', 'submitted_at')
+    list_filter = ('submitted_at', 'token__base_points')
+    search_fields = ('team__team_name',)
+    readonly_fields = ('team', 'token', 'submitted_at')
+    ordering = ('-submitted_at',)
+    
+    def token_points(self, obj):
+        return f"{obj.token.base_points} pts"
+    token_points.short_description = 'Points'
+    
+    def has_add_permission(self, request):
+        return False  # Tokens can only be submitted via API
 ───────────────────────────────────────────────────────────────────────────────
 
 📄 FILE: tokens/apps.py
@@ -2610,6 +2749,31 @@ class Migration(migrations.Migration):
 
 ───────────────────────────────────────────────────────────────────────────────
 
+📄 FILE: tokens/migrations/0002_alter_token_base_points.py
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Lines: 18 | Size: 1.0K
+
+# Generated by Django 6.0.1 on 2026-02-10 10:06
+
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('tokens', '0001_initial'),
+    ]
+
+    operations = [
+        migrations.AlterField(
+            model_name='token',
+            name='base_points',
+            field=models.IntegerField(choices=[(5, '5 points'), (10, '10 points'), (15, '15 points'), (20, '20 points'), (30, '30 points'), (40, '40 points'), (50, '50 points'), (60, '60 points')]),
+        ),
+    ]
+
+───────────────────────────────────────────────────────────────────────────────
+
 📄 FILE: tokens/migrations/__init__.py
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Lines: 0 | Size: 0
@@ -2620,7 +2784,7 @@ Lines: 0 | Size: 0
 
 📄 FILE: tokens/models.py
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Lines: 50 | Size: 4.0K
+Lines: 52 | Size: 4.0K
 
 # tokens/models.py (or flags/models.py)
 
@@ -2636,7 +2800,9 @@ class Token(models.Model):
             (15, '15 points'),
             (20, '20 points'),
             (30, '30 points'),
+            (40, '40 points'),
             (50, '50 points'),
+            (60, '60 points'),
         ]
     )
     created_at = models.DateTimeField(auto_now_add=True)
@@ -2955,6 +3121,18 @@ class TeamTokenHistoryView(APIView):
         },status=status.HTTP_200_OK)
 ───────────────────────────────────────────────────────────────────────────────
 
+📄 FILE: utils.py
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Lines: 5 | Size: 0
+
+
+def get_team_identifier(group, request):
+    """Rate limit by team ID instead of IP"""
+    if request.user.is_authenticated:
+        return f"team_{request.user.id}"
+    return request.META.get('REMOTE_ADDR')
+───────────────────────────────────────────────────────────────────────────────
+
 ✅ Dump completed!
-📊 Total files: 74
-💾 Output file: project_files_dump.txt (132K)
+📊 Total files: 79
+💾 Output file: project_files_dump.txt (140K)

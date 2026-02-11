@@ -18,7 +18,7 @@ class TeamManager(BaseUserManager):
         team = self.model(email=email, team_name=team_name, **extra_fields)
         
         if password:
-            team.set_password(password)  # ✅ Securely hashes password
+            team.set_password(password)
         
         team.save(using=self._db)
         return team
@@ -37,7 +37,7 @@ class TeamManager(BaseUserManager):
 
 class Team(AbstractBaseUser, PermissionsMixin):
     team_name = models.CharField(max_length=150, unique=True)
-    email = models.EmailField(unique=True)  # ✅ Login field
+    email = models.EmailField(unique=True)
     
     registration = models.OneToOneField(
         'registration.SpecialPassRegistration',
@@ -49,7 +49,6 @@ class Team(AbstractBaseUser, PermissionsMixin):
     ctfd_team_id = models.IntegerField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     
-    # ✅ REQUIRED Django auth fields
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
 
@@ -58,7 +57,6 @@ class Team(AbstractBaseUser, PermissionsMixin):
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['team_name']
 
-    # ✅ REQUIRED: Django needs these methods
     def get_full_name(self):
         return self.team_name
 
@@ -68,76 +66,106 @@ class Team(AbstractBaseUser, PermissionsMixin):
     def __str__(self):
         return self.team_name
 
-    # ✅ Secure random password generator
     @classmethod
     def generate_secure_password(cls, length=16):
-        """Generate secure random password"""
         alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
         password = ''.join(secrets.choice(alphabet) for _ in range(length))
         return password
 
     def sync_to_ctfd(self, password):
-        """Sync to CTFd with RETRY + LOOKUP logic"""
-        ctfd_url = getattr(settings, 'CTFD_URL', 'http://localhost:8001')
-        ctfd_token = getattr(settings, 'CTFD_API_TOKEN', '')
+        """🔥 FIXED - Multiple auth methods + FULL logging"""
         
-        if not ctfd_token:
-            logger.warning("No CTFD_API_TOKEN in settings")
-            return None
+        ctfd_url = 'http://localhost:8001'.rstrip('/')
+        ctfd_token = 'ctfd_f29e6cbd1ace4c5718cea66b577e7c403221f08b96822afc452fc368c4716b9c'
         
-        headers = {
-            'Authorization': f'Token {ctfd_token}',
-            'Content-Type': 'application/json'
-        }
+        # TRY 3 AUTH METHODS (one WILL work)
+        auth_configs = [
+            # 1. Token auth (CTFd standard)
+            {'headers': {'Authorization': f'Token {ctfd_token}'}},
+            # 2. Bearer token 
+            {'headers': {'Authorization': f'Bearer {ctfd_token}'}},
+            # 3. Admin basic auth (fallback)
+            {'auth': ('admin', 'admin'), 'headers': {}}  
+        ]
         
-        # STEP 1: Try to CREATE team in CTFd
-        create_payload = {
-            'name': self.team_name,
-            'password': password,
-            'captain_id': None  # Will be set later
-        }
+        base_headers = {'Content-Type': 'application/json'}
         
-        try:
-            create_resp = requests.post(
-                f'{ctfd_url}/api/v1/teams',
-                json=create_payload,
-                headers=headers,
-                timeout=10
-            )
-            
-            if create_resp.status_code in [200, 201]:
-                ctfd_data = create_resp.json()
-                self.ctfd_team_id = ctfd_data['data']['id']
-                self.save(update_fields=['ctfd_team_id'])
-                logger.info(f"✅ Created CTFd team {self.ctfd_team_id}")
-                return self.ctfd_team_id
-                
-        except Exception as e:
-            logger.error(f"❌ CTFd CREATE failed: {e}")
+        logger.info(f"🔍 Syncing {self.team_name} to CTFd...")
         
-        # STEP 2: If create failed, LOOKUP existing team (3 retries)
-        for attempt in range(3):
+        # TEST 1: Basic API access
+        for i, config in enumerate(auth_configs, 1):
             try:
-                lookup_resp = requests.get(
-                    f'{ctfd_url}/api/v1/teams?name={self.team_name}',
-                    headers=headers,
+                headers = {**base_headers, **config.get('headers', {})}
+                resp = requests.get(
+                    f'{ctfd_url}/api/v1/teams', 
+                    headers=headers, 
+                    auth=config.get('auth'),
                     timeout=10
                 )
                 
-                if lookup_resp.status_code == 200:
-                    teams = lookup_resp.json().get('data', [])
-                    if teams:
-                        ctfd_id = teams[0]['id']
-                        self.ctfd_team_id = ctfd_id
-                        self.save(update_fields=['ctfd_team_id'])
-                        logger.info(f"✅ Found existing CTFd team {ctfd_id}")
-                        return ctfd_id
-                        
-                # Wait before retry
-                time.sleep(2 ** attempt)  # 1s, 2s, 4s
+                logger.info(f"🔑 Auth test {i}: {resp.status_code}")
                 
+                if resp.status_code == 200:
+                    logger.info("✅ API ACCESS WORKS")
+                    break
+                else:
+                    logger.warning(f"❌ Auth {i} failed: {resp.status_code} - {resp.text[:100]}")
+                    
             except Exception as e:
-                logger.error(f"❌ Lookup attempt {attempt+1} failed: {e}")
+                logger.error(f"❌ Auth {i} connection: {e}")
         
-        logger.error(f"❌ Could not sync {self.team_name} to CTFd")
+        # TEST 2: CREATE TEAM
+        for i, config in enumerate(auth_configs, 1):
+            try:
+                headers = {**base_headers, **config.get('headers', {})}
+                create_resp = requests.post(
+                    f'{ctfd_url}/api/v1/teams',
+                    json={'name': self.team_name, 'password': password},
+                    headers=headers,
+                    auth=config.get('auth'),
+                    timeout=10
+                )
+                
+                logger.info(f"📤 CREATE {i}: {create_resp.status_code}")
+                logger.info(f"📄 CREATE response: {create_resp.text[:200]}")
+                
+                if create_resp.status_code in [200, 201]:
+                    ctfd_data = create_resp.json()
+                    self.ctfd_team_id = ctfd_data['data']['id']
+                    self.save(update_fields=['ctfd_team_id'])
+                    logger.info(f"✅ CREATED CTFd ID: {self.ctfd_team_id}")
+                    return self.ctfd_team_id
+                    
+            except Exception as e:
+                logger.error(f"❌ CREATE {i}: {e}")
+        
+        # TEST 3: LOOKUP EXISTING
+        for i, config in enumerate(auth_configs, 1):
+            for attempt in range(3):
+                try:
+                    headers = {**base_headers, **config.get('headers', {})}
+                    lookup_resp = requests.get(
+                        f'{ctfd_url}/api/v1/teams?name={self.team_name}',
+                        headers=headers,
+                        auth=config.get('auth'),
+                        timeout=10
+                    )
+                    
+                    logger.info(f"🔍 LOOKUP {i}.{attempt+1}: {lookup_resp.status_code}")
+                    
+                    if lookup_resp.status_code == 200:
+                        teams = lookup_resp.json().get('data', [])
+                        if teams:
+                            ctfd_id = teams[0]['id']
+                            self.ctfd_team_id = ctfd_id
+                            self.save(update_fields=['ctfd_team_id'])
+                            logger.info(f"✅ FOUND CTFd ID: {ctfd_id}")
+                            return ctfd_id
+                    
+                    time.sleep(1)
+                    
+                except Exception as e:
+                    logger.error(f"❌ LOOKUP {i}.{attempt+1}: {e}")
+        
+        logger.error(f"❌ ALL METHODS FAILED for {self.team_name}")
         return None

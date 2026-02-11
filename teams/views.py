@@ -11,12 +11,12 @@ from .serializers import TeamSerializer
 from ctfd.service import CTFdService
 from hackathon.models import Project
 from django.db.models import Sum
+from django_ratelimit.decorators import ratelimit
+from django.utils.decorators import method_decorator
 
-
-
+@method_decorator(ratelimit(key='ip', rate='5/m'), name='dispatch')
 class TeamLoginView(APIView):
     permission_classes = [AllowAny]
-
     def post(self, request):
         serializer = TeamSerializer(data=request.data)
         
